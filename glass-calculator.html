@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calc — Glass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     Two themes (dark / light) expressed as CSS variables on the
+     root element. Toggling [data-theme] swaps the whole palette.
+  ============================================================ */
+  :root {
+    --accent: #6C7CFF;
+    --accent-2: #FF7CA3;
+    --radius-lg: 28px;
+    --radius-md: 18px;
+    --radius-sm: 12px;
+    --font-display: 'Sora', sans-serif;
+    --font-ui: 'Inter', sans-serif;
+  }
+
+  [data-theme="dark"] {
+    --bg-base: #0B0E1A;
+    --blob-1: #2A2F6B;
+    --blob-2: #4A2049;
+    --glass: rgba(255, 255, 255, 0.06);
+    --glass-strong: rgba(255, 255, 255, 0.10);
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --ink: #F3F2FB;
+    --ink-soft: #A6A8C2;
+    --ink-faint: #6C6E8C;
+    --key-bg: rgba(255, 255, 255, 0.05);
+    --key-bg-hover: rgba(255, 255, 255, 0.10);
+    --key-bg-active: rgba(255, 255, 255, 0.16);
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+
+  [data-theme="light"] {
+    --bg-base: #EEF1FA;
+    --blob-1: #C7D0FF;
+    --blob-2: #FFD3E3;
+    --glass: rgba(255, 255, 255, 0.55);
+    --glass-strong: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.9);
+    --ink: #232540;
+    --ink-soft: #5C5F82;
+    --ink-faint: #9698B5;
+    --key-bg: rgba(255, 255, 255, 0.5);
+    --key-bg-hover: rgba(255, 255, 255, 0.75);
+    --key-bg-active: rgba(255, 255, 255, 0.95);
+    --shadow: rgba(80, 90, 150, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-base);
+    font-family: var(--font-ui);
+    color: var(--ink);
+    overflow-x: hidden;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+
+  /* ============================================================
+     AMBIENT BACKGROUND
+     Two soft blurred blobs drift slowly behind the glass panels.
+     This is what the glassmorphism effect is actually "made of" —
+     without color behind it, frosted glass has nothing to refract.
+  ============================================================ */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+    transition: background 0.4s ease;
+  }
+  .blob-a {
+    width: 480px; height: 480px;
+    background: var(--blob-1);
+    top: -120px; left: -100px;
+    animation: drift1 22s ease-in-out infinite;
+  }
+  .blob-b {
+    width: 420px; height: 420px;
+    background: var(--blob-2);
+    bottom: -140px; right: -100px;
+    animation: drift2 26s ease-in-out infinite;
+  }
+  @keyframes drift1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(60px, 40px) scale(1.1); }
+  }
+  @keyframes drift2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-50px, -30px) scale(1.08); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .blob-a, .blob-b { animation: none; }
+  }
+
+  /* ============================================================
+     LAYOUT
+  ============================================================ */
+  .app {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 380px 280px;
+    gap: 20px;
+    width: 100%;
+    max-width: 700px;
+  }
+
+  @media (max-width: 720px) {
+    .stage {
+      grid-template-columns: 1fr;
+      max-width: 420px;
+    }
+  }
+
+  /* ============================================================
+     GLASS PANEL — shared base for calculator + history
+  ============================================================ */
+  .glass-panel {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 24px 60px -10px var(--shadow);
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  /* ============================================================
+     CALCULATOR PANEL
+  ============================================================ */
+  .calculator {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brand-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: inline-block;
+  }
+
+  /* Theme toggle — a small pill switch, not a generic checkbox */
+  .theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--key-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    padding: 4px;
+    cursor: pointer;
+    position: relative;
+  }
+  .theme-toggle button {
+    border: none;
+    background: transparent;
+    width: 30px;
+    height: 26px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    position: relative;
+    z-index: 1;
+    transition: color 0.25s ease;
+  }
+  .theme-toggle button.active {
+    color: var(--ink);
+  }
+  .theme-toggle .thumb {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 30px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--key-bg-active);
+    box-shadow: 0 2px 6px var(--shadow);
+    transition: transform 0.28s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  [data-theme="light"] .theme-toggle .thumb {
+    transform: translateX(34px);
+  }
+
+  /* ---- Expression input + live ghost preview (signature element) ---- */
+  .input-zone {
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 18px 18px 14px;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    position: relative;
+  }
+
+  #expression {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    text-align: right;
+    width: 100%;
+    caret-color: var(--accent);
+    padding: 0;
+  }
+  #expression::placeholder {
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+
+  .ghost-preview {
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+    text-align: right;
+    min-height: 18px;
+    transition: opacity 0.15s ease;
+  }
+  .ghost-preview.has-value {
+    color: var(--accent);
+  }
+  .ghost-preview.error {
+    color: var(--accent-2);
+  }
+
+  /* ---- Keypad ---- */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  button.key {
+    border: 1px solid var(--glass-border);
+    background: var(--key-bg);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 1.05rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 14px 0;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.08s ease, border-color 0.2s ease;
+  }
+  button.key:hover { background: var(--key-bg-hover); }
+  button.key:active, button.key.pressed {
+    background: var(--key-bg-active);
+    transform: scale(0.96);
+  }
+  button.key:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button.key.op { color: var(--accent); }
+  button.key.util { color: var(--ink-soft); font-size: 0.95rem; }
+  button.key.equals {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none;
+    grid-column: span 2;
+  }
+  button.key.equals:hover { filter: brightness(1.06); }
+  button.key.equals:active, button.key.equals.pressed { transform: scale(0.97); }
+
+  .zero-wide { grid-column: span 2; }
+
+  /* ============================================================
+     HISTORY TAPE
+  ============================================================ */
+  .history-panel {
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 560px;
+  }
+
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+  .history-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .clear-history {
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-family: var(--font-ui);
+  }
+  .clear-history:hover { color: var(--accent-2); background: var(--key-bg); }
+
+  .tape {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 2px;
+  }
+  .tape::-webkit-scrollbar { width: 6px; }
+  .tape::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 999px;
+  }
+
+  .tape-empty {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 30px 10px;
+    line-height: 1.5;
+  }
+
+  .tape-item {
+    background: var(--key-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    text-align: right;
+  }
+  .tape-item:hover {
+    background: var(--key-bg-hover);
+    transform: translateX(-2px);
+  }
+  .tape-expr {
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    word-break: break-all;
+  }
+  .tape-result {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+    word-break: break-all;
+  }
+
+  /* Small helper hint under the keypad */
+  .hint {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- Ambient background blobs that the glass panels blur/refract -->
+<div class="blob blob-a"></div>
+<div class="blob blob-b"></div>
+
+<div class="app">
+  <div class="stage">
+
+    <!-- ============== CALCULATOR PANEL ============== -->
+    <div class="glass-panel calculator">
+
+      <div class="top-row">
+        <div class="brand"><span class="brand-dot"></span>Calc</div>
+
+        <!-- Dark / Light toggle -->
+        <div class="theme-toggle" id="themeToggle" role="group" aria-label="Theme">
+          <span class="thumb" aria-hidden="true"></span>
+          <button type="button" data-theme-choice="dark" class="active" aria-label="Dark mode">🌙</button>
+          <button type="button" data-theme-choice="light" aria-label="Light mode">☀️</button>
+        </div>
+      </div>
+
+      <!-- Expression input + live ghost-preview result -->
+      <div class="input-zone">
+        <input
+          type="text"
+          id="expression"
+          inputmode="none"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="0"
+          aria-label="Expression input"
+        />
+        <div class="ghost-preview" id="ghostPreview">&nbsp;</div>
+      </div>
+
+      <!-- Keypad -->
+      <div class="keypad" id="keypad">
+        <button class="key util" data-action="clear">AC</button>
+        <button class="key util" data-action="backspace">⌫</button>
+        <button class="key util" data-action="insert" data-value="%">%</button>
+        <button class="key op" data-action="insert" data-value="/">÷</button>
+
+        <button class="key util" data-action="insert" data-value="(">(</button>
+        <button class="key util" data-action="insert" data-value=")">)</button>
+        <button class="key util" data-action="insert" data-value="^">xʸ</button>
+        <button class="key op" data-action="insert" data-value="*">×</button>
+
+        <button class="key" data-action="insert" data-value="7">7</button>
+        <button class="key" data-action="insert" data-value="8">8</button>
+        <button class="key" data-action="insert" data-value="9">9</button>
+        <button class="key op" data-action="insert" data-value="-">−</button>
+
+        <button class="key" data-action="insert" data-value="4">4</button>
+        <button class="key" data-action="insert" data-value="5">5</button>
+        <button class="key" data-action="insert" data-value="6">6</button>
+        <button class="key op" data-action="insert" data-value="+">+</button>
+
+        <button class="key" data-action="insert" data-value="1">1</button>
+        <button class="key" data-action="insert" data-value="2">2</button>
+        <button class="key" data-action="insert" data-value="3">3</button>
+        <button class="key equals" data-action="equals" rowspan="2">=</button>
+
+        <button class="key zero-wide" data-action="insert" data-value="0">0</button>
+        <button class="key" data-action="insert" data-value=".">.</button>
+      </div>
+
+      <div class="hint">Type directly, or click. Enter = equals · Backspace deletes</div>
+    </div>
+
+    <!-- ============== HISTORY TAPE PANEL ============== -->
+    <div class="glass-panel history-panel">
+      <div class="history-header">
+        <h2>History</h2>
+        <button class="clear-history" id="clearHistory" type="button">Clear</button>
+      </div>
+      <div class="tape" id="tape">
+        <div class="tape-empty" id="tapeEmpty">
+          Your calculations will<br>show up here. Click any<br>result to reuse it.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CALCULATOR LOGIC
+   Organized in four parts:
+   1. Safe expression evaluation (no eval() on raw user text)
+   2. Display / ghost-preview rendering
+   3. Input handling (typing, clicking, keyboard)
+   4. History tape (storage + click-to-reuse)
+================================================================ */
+
+(function () {
+
+  // ---------------------------------------------------------
+  // 1. SAFE EXPRESSION EVALUATION
+  // We never hand the user's raw string to eval(). Instead we
+  // tokenize it ourselves and evaluate with the shunting-yard
+  // algorithm, so stray letters or malicious input can't run
+  // as code — they just fail to parse as a number/operator.
+  // ---------------------------------------------------------
+
+  const OPERATORS = {
+    '+': { precedence: 1, fn: (a, b) => a + b },
+    '-': { precedence: 1, fn: (a, b) => a - b },
+    '*': { precedence: 2, fn: (a, b) => a * b },
+    '/': { precedence: 2, fn: (a, b) => a / b },
+    '%': { precedence: 2, fn: (a, b) => a % b }, // also doubles as "percent of" via preprocessing below
+    '^': { precedence: 3, fn: (a, b) => Math.pow(a, b) },
+  };
+
+  // Turn the raw string into a flat list of tokens: numbers,
+  // operators, and parentheses. Whitespace is ignored.
+  function tokenize(expr) {
+    const tokens = [];
+    let i = 0;
+    while (i < expr.length) {
+      const ch = expr[i];
+
+      if (ch === ' ') { i++; continue; }
+
+      if (/[0-9.]/.test(ch)) {
+        let num = ch;
+        i++;
+        while (i < expr.length && /[0-9.]/.test(expr[i])) {
+          num += expr[i];
+          i++;
+        }
+        tokens.push({ type: 'number', value: parseFloat(num) });
+        continue;
+      }
+
+      if (ch === '(' || ch === ')') {
+        tokens.push({ type: 'paren', value: ch });
+        i++;
+        continue;
+      }
+
+      if ('+-*/%^'.includes(ch)) {
+        // Detect unary minus: a '-' is unary if it's at the very
+        // start, or follows another operator / open-paren.
+        const prevToken = tokens[tokens.length - 1];
+        const isUnary = ch === '-' && (
+          !prevToken ||
+          prevToken.type === 'operator' ||
+          (prevToken.type === 'paren' && prevToken.value === '(')
+        );
+        tokens.push({ type: isUnary ? 'unary' : 'operator', value: ch });
+        i++;
+        continue;
+      }
+
+      // Unknown character — bail out, this expression is invalid
+      throw new Error('Unexpected character: ' + ch);
+    }
+    return tokens;
+  }
+
+  // Shunting-yard: convert infix tokens to Reverse Polish Notation,
+  // then evaluate the RPN stack. This correctly respects operator
+  // precedence and parentheses (e.g. 5 * (3 + 2) = 25, not 17).
+  function evaluate(expr) {
+    const tokens = tokenize(expr);
+    if (tokens.length === 0) throw new Error('Empty expression');
+
+    const output = [];
+    const opStack = [];
+
+    tokens.forEach((token) => {
+      if (token.type === 'number') {
+        output.push(token);
+      } else if (token.type === 'unary') {
+        // Represent unary minus as "negate" so RPN eval can special-case it
+        opStack.push({ type: 'unary', value: 'neg' });
+      } else if (token.type === 'operator') {
+        while (
+          opStack.length &&
+          opStack[opStack.length - 1].type === 'operator' &&
+          OPERATORS[opStack[opStack.length - 1].value].precedence >= OPERATORS[token.value].precedence
+        ) {
+          output.push(opStack.pop());
+        }
+        opStack.push(token);
+      } else if (token.value === '(') {
+        opStack.push(token);
+      } else if (token.value === ')') {
+        while (opStack.length && opStack[opStack.length - 1].value !== '(') {
+          output.push(opStack.pop());
+        }
+        if (!opStack.length) throw new Error('Mismatched parentheses');
+        opStack.pop(); // discard the '('
+        // If a unary op sits just below the paren group, apply it after popping
+        if (opStack.length && opStack[opStack.length - 1].type === 'unary') {
+          output.push(opStack.pop());
+        }
+      }
+    });
+
+    while (opStack.length) {
+      const op = opStack.pop();
+      if (op.value === '(') throw new Error('Mismatched parentheses');
+      output.push(op);
+    }
+
+    // Evaluate the RPN output
+    const stack = [];
+    output.forEach((token) => {
+      if (token.type === 'number') {
+        stack.push(token.value);
+      } else if (token.type === 'unary') {
+        if (stack.length < 1) throw new Error('Invalid expression');
+        stack.push(-stack.pop());
+      } else {
+        if (stack.length < 2) throw new Error('Invalid expression');
+        const b = stack.pop();
+        const a = stack.pop();
+        stack.push(OPERATORS[token.value].fn(a, b));
+      }
+    });
+
+    if (stack.length !== 1) throw new Error('Invalid expression');
+    const result = stack[0];
+    if (!isFinite(result)) throw new Error('Math error');
+    return result;
+  }
+
+  // Round to avoid floating point artifacts (0.1 + 0.2 = 0.30000000000000004)
+  function cleanNumber(num) {
+    return Math.round(num * 1e10) / 1e10;
+  }
+
+  // ---------------------------------------------------------
+  // 2. DOM REFERENCES + DISPLAY
+  // ---------------------------------------------------------
+
+  const exprInput = document.getElementById('expression');
+  const ghostPreview = document.getElementById('ghostPreview');
+  const tapeEl = document.getElementById('tape');
+  const tapeEmptyEl = document.getElementById('tapeEmpty');
+  const clearHistoryBtn = document.getElementById('clearHistory');
+  const themeToggle = document.getElementById('themeToggle');
+
+  let history = []; // { expression, result } most recent first
+
+  // Live "ghost" preview: as the user types, try to evaluate what
+  // they have so far and show a faint preview of the answer. This
+  // is the calculator's signature touch — feedback before "=".
+  function updateGhostPreview() {
+    const raw = exprInput.value.trim();
+    if (!raw) {
+      ghostPreview.textContent = '\u00A0';
+      ghostPreview.className = 'ghost-preview';
+      return;
+    }
+    try {
+      const result = cleanNumber(evaluate(raw));
+      ghostPreview.textContent = '= ' + result;
+      ghostPreview.className = 'ghost-preview has-value';
+    } catch (err) {
+      // Don't show scary errors while mid-typing (e.g. "5 + (" is
+      // incomplete, not wrong) — only flag if it parses something
+      // clearly broken. We stay quiet rather than alarm the user.
+      ghostPreview.textContent = '\u00A0';
+      ghostPreview.className = 'ghost-preview';
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 3. INPUT HANDLING — typing, clicking keys, keyboard shortcuts
+  // ---------------------------------------------------------
+
+  function insertAtCursor(text) {
+    const start = exprInput.selectionStart ?? exprInput.value.length;
+    const end = exprInput.selectionEnd ?? exprInput.value.length;
+    const current = exprInput.value;
+    exprInput.value = current.slice(0, start) + text + current.slice(end);
+    const newPos = start + text.length;
+    exprInput.setSelectionRange(newPos, newPos);
+    exprInput.focus();
+    updateGhostPreview();
+  }
+
+  function backspaceAtCursor() {
+    const start = exprInput.selectionStart ?? exprInput.value.length;
+    const end = exprInput.selectionEnd ?? exprInput.value.length;
+    const current = exprInput.value;
+    if (start !== end) {
+      // Delete selected range
+      exprInput.value = current.slice(0, start) + current.slice(end);
+      exprInput.setSelectionRange(start, start);
+    } else if (start > 0) {
+      exprInput.value = current.slice(0, start - 1) + current.slice(start);
+      exprInput.setSelectionRange(start - 1, start - 1);
+    }
+    exprInput.focus();
+    updateGhostPreview();
+  }
+
+  function clearAll() {
+    exprInput.value = '';
+    updateGhostPreview();
+    exprInput.focus();
+  }
+
+  function runEquals() {
+    const raw = exprInput.value.trim();
+    if (!raw) return;
+    try {
+      const result = cleanNumber(evaluate(raw));
+      addToHistory(raw, result);
+      exprInput.value = String(result);
+      updateGhostPreview();
+    } catch (err) {
+      ghostPreview.textContent = 'Can\u2019t solve that expression';
+      ghostPreview.className = 'ghost-preview error';
+    }
+  }
+
+  function flashPress(el) {
+    if (!el) return;
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 110);
+  }
+
+  // Click handling for the on-screen keypad
+  document.getElementById('keypad').addEventListener('click', (e) => {
+    const btn = e.target.closest('button.key');
+    if (!btn) return;
+    const action = btn.dataset.action;
+
+    if (action === 'insert') insertAtCursor(btn.dataset.value);
+    else if (action === 'clear') clearAll();
+    else if (action === 'backspace') backspaceAtCursor();
+    else if (action === 'equals') runEquals();
+
+    flashPress(btn);
+  });
+
+  // Typing directly into the input — just keep the ghost preview live.
+  // We don't block any characters here; evaluate() safely rejects
+  // anything invalid when "=" is actually pressed.
+  exprInput.addEventListener('input', updateGhostPreview);
+
+  // Full keyboard support, mouse-free from end to end.
+  exprInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runEquals();
+    }
+    // Backspace, digits, operators, parens all work natively in
+    // a text input — no extra handling needed for those.
+  });
+
+  // Also allow keyboard shortcuts even if focus isn't in the input
+  // (e.g. user just clicked a history item, then starts typing).
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement === exprInput) return; // already handled above
+    if (e.key === 'Escape') {
+      clearAll();
+    } else if (/^[0-9+\-*/^.%()]$/.test(e.key)) {
+      exprInput.focus();
+      insertAtCursor(e.key);
+    } else if (e.key === 'Enter') {
+      exprInput.focus();
+      runEquals();
+    } else if (e.key === 'Backspace') {
+      exprInput.focus();
+    }
+  });
+
+  // ---------------------------------------------------------
+  // 4. HISTORY TAPE — store + render + click-to-reuse
+  // ---------------------------------------------------------
+
+  function addToHistory(expression, result) {
+    history.unshift({ expression, result });
+    if (history.length > 50) history.pop(); // keep the tape from growing forever
+    renderHistory();
+  }
+
+  function renderHistory() {
+    tapeEl.innerHTML = '';
+
+    if (history.length === 0) {
+      tapeEl.appendChild(tapeEmptyEl);
+      return;
+    }
+
+    history.forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'tape-item';
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-label', `Reuse result ${entry.result}`);
+
+      const exprLine = document.createElement('div');
+      exprLine.className = 'tape-expr';
+      exprLine.textContent = entry.expression;
+
+      const resultLine = document.createElement('div');
+      resultLine.className = 'tape-result';
+      resultLine.textContent = entry.result;
+
+      item.appendChild(exprLine);
+      item.appendChild(resultLine);
+
+      // Clicking (or pressing Enter on) a past result injects it
+      // back into the main input, ready to continue calculating.
+      const reuse = () => {
+        exprInput.value = String(entry.result);
+        updateGhostPreview();
+        exprInput.focus();
+      };
+      item.addEventListener('click', reuse);
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          reuse();
+        }
+      });
+
+      tapeEl.appendChild(item);
+    });
+  }
+
+  clearHistoryBtn.addEventListener('click', () => {
+    history = [];
+    renderHistory();
+  });
+
+  // ---------------------------------------------------------
+  // THEME TOGGLE — dark / light, persisted only in memory
+  // (no localStorage per artifact sandbox rules, but this is a
+  // plain standalone HTML file so localStorage would normally
+  // be fine outside that sandbox — kept in-memory here to behave
+  // identically in every environment it's opened in).
+  // ---------------------------------------------------------
+
+  themeToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme-choice]');
+    if (!btn) return;
+    const choice = btn.dataset.themeChoice;
+
+    document.body.setAttribute('data-theme', choice);
+    themeToggle.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.themeChoice === choice);
+    });
+  });
+
+  // ---------------------------------------------------------
+  // INIT
+  // ---------------------------------------------------------
+  updateGhostPreview();
+  exprInput.focus();
+
+})();
+</script>
+
+</body>
+</html>
